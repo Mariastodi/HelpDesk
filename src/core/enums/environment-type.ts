@@ -1,0 +1,5 @@
+export enum EnvironmentType {
+  HOMOLOGACAO = "HOMOLOGACAO",
+  OPERACAO = "OPERACAO",
+  DESENVOLVIMENTO = "DESENVOLVIMENTO",
+}

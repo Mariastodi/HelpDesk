@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "GPM Desk",
+    "slug": "gpmobile-help-desk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/adaptive-icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/adaptive-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#A31E24"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permita o acesso às fotos para anexar imagens aos chamados.",
+          "cameraPermission": "Permita o acesso à câmera para anexar fotos aos chamados."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gpmobile.helpdesk"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#A31E24"
+      },
+      "package": "com.gpmobile.helpdesk"
+    }
+  }
+}
