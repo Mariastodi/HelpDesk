@@ -31,7 +31,7 @@ export async function createTicket(
   const requestData = new FormData();
   requestData.append("descricao", ticketCreatePayload.description);
   ticketCreatePayload.attachmentFiles.forEach((attachment) => {
-    requestData.append("anexos", {
+    requestData.append("attachments", {
       uri: attachment.uri,
       name: attachment.name,
       type: attachment.mimeType,
@@ -41,7 +41,6 @@ export async function createTicket(
   const { data: responsePayload } = await apiClient.post<DataTicket>(
     "/help-desk/tickets",
     requestData,
-    { headers: { "Content-Type": "multipart/form-data" } },
   );
 
   return responsePayload;

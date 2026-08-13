@@ -19,11 +19,29 @@
           "photosPermission": "Permita o acesso às fotos para anexar imagens aos chamados.",
           "cameraPermission": "Permita o acesso à câmera para anexar fotos aos chamados."
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permita que o GPM Desk use o microfone para transcrever a descrição do chamado.",
+          "speechRecognitionPermission": "Permita que o GPM Desk reconheça sua fala para preencher a descrição do chamado.",
+          "androidSpeechServicePackages": [
+            "com.google.android.as",
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.tts"
+          ]
+        }
       ]
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gpmobile.helpdesk"
+      "bundleIdentifier": "com.gpmobile.helpdesk",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Permita que o GPM Desk use a câmera para anexar fotos aos chamados.",
+        "NSPhotoLibraryUsageDescription": "Permita que o GPM Desk acesse suas fotos para anexá-las aos chamados.",
+        "NSMicrophoneUsageDescription": "Permita que o GPM Desk use o microfone para transcrever a descrição do chamado.",
+        "NSSpeechRecognitionUsageDescription": "Permita que o GPM Desk reconheça sua fala para preencher a descrição do chamado."
+      }
     },
     "android": {
       "adaptiveIcon": {

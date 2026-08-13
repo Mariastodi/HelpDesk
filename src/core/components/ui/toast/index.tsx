@@ -45,7 +45,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {message ? (
-        <Animated.View style={[styles.toast, { backgroundColor: VARIANT_COLOR[variant], opacity }]}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.toast, { backgroundColor: VARIANT_COLOR[variant], opacity }]}
+        >
           <Text style={styles.text}>{message}</Text>
         </Animated.View>
       ) : null}

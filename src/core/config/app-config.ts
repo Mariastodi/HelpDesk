@@ -5,6 +5,5 @@ export const appConfig = {
   simulatedLoginDelayInMilliseconds: 900,
   simulatedRequestDelayInMilliseconds: 500,
   simulatedTicketCreationDelayInMilliseconds: 900,
-  supportUrl:
-    "https://api.whatsapp.com/send/?phone=558581902506&text=Ol%C3%A1%252C+pode+me+ajudar%253F&type=phone_number&app_absent=0",
+  supportUrl: "https://wa.me/558581902506?text=Ol%C3%A1%2C%20pode%20me%20ajudar%3F",
 } as const;

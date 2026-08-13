@@ -9,6 +9,7 @@ Aplicativo mobile de abertura e acompanhamento de chamados, desenvolvido com Rea
 - Listagem de chamados com busca, filtros, ordenação e indicadores de SLA
 - Monitoramento do consumo de horas de suporte
 - Abertura de chamado com fotos da câmera ou galeria e documentos PDF, XLS e XLSX
+- Transcrição de voz em português diretamente no campo de descrição
 - Detalhes do chamado com fluxo de atendimento, histórico e visualização de anexos
 - Cache local de chamados e sessão com AsyncStorage
 - Menu lateral com informações, ajuda, suporte via WhatsApp, troca de ambiente e saída

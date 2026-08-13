@@ -44,6 +44,7 @@ import { appConfig } from "@core/config/app-config";
 
 type SortOption = "ABERTURA" | "PRAZO" | "PRIORIDADE";
 type StatusFilterOption = TicketStatus | "TODOS" | "AGUARDANDO";
+type DrawerDestination = "information" | "help" | "settings";
 
 const STATUS_FILTER_OPTIONS: { label: string; value: StatusFilterOption }[] = [
   { label: "Todos", value: "TODOS" },
@@ -103,6 +104,7 @@ export function TicketListScreen() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isInformationOpen, setIsInformationOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const pendingDrawerDestination = useRef<DrawerDestination>();
   const [isHoursAlertDismissed, setIsHoursAlertDismissed] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilterOption>("TODOS");
@@ -199,6 +201,20 @@ export function TicketListScreen() {
     }
   }
 
+  function handleOpenDrawerDestination(destination: DrawerDestination) {
+    pendingDrawerDestination.current = destination;
+    setIsDrawerOpen(false);
+  }
+
+  function handleDrawerDismiss() {
+    const destination = pendingDrawerDestination.current;
+    pendingDrawerDestination.current = undefined;
+
+    if (destination === "information") setIsInformationOpen(true);
+    if (destination === "help") setIsHelpOpen(true);
+    if (destination === "settings") navigation.navigate("Settings");
+  }
+
   function handleClearFilters() {
     setStatusFilter("TODOS");
     setSortOption("ABERTURA");
@@ -280,7 +296,13 @@ export function TicketListScreen() {
         <Plus color={colors.text.onPrimary} size={31} />
       </Pressable>
 
-      <Modal transparent visible={isDrawerVisible} animationType="none">
+      <Modal
+        transparent
+        visible={isDrawerVisible}
+        animationType="none"
+        onDismiss={handleDrawerDismiss}
+        onRequestClose={() => setIsDrawerOpen(false)}
+      >
         <View style={styles.drawerOverlay}>
           <Animated.View
             style={[styles.drawerPanel, { transform: [{ translateX: drawerTranslateX }] }]}
@@ -299,25 +321,22 @@ export function TicketListScreen() {
               </Pressable>
               <Pressable
                 style={styles.drawerItem}
-                onPress={() => {
-                  setIsDrawerOpen(false);
-                  setIsInformationOpen(true);
-                }}
+                onPress={() => handleOpenDrawerDestination("information")}
               >
                 <Info size={21} color="#3A3A3A" />
                 <Text style={styles.drawerItemText}>Informações</Text>
               </Pressable>
               <Pressable
                 style={styles.drawerItem}
-                onPress={() => {
-                  setIsDrawerOpen(false);
-                  setIsHelpOpen(true);
-                }}
+                onPress={() => handleOpenDrawerDestination("help")}
               >
                 <CircleHelp size={21} color="#3A3A3A" />
                 <Text style={styles.drawerItemText}>Central de ajuda</Text>
               </Pressable>
-              <Pressable style={styles.drawerItem} onPress={() => setIsDrawerOpen(false)}>
+              <Pressable
+                style={styles.drawerItem}
+                onPress={() => handleOpenDrawerDestination("settings")}
+              >
                 <Settings size={21} color="#3A3A3A" />
                 <Text style={styles.drawerItemText}>Configurações</Text>
               </Pressable>
@@ -332,16 +351,17 @@ export function TicketListScreen() {
                 <Text style={styles.drawerItemText}>Sair</Text>
               </Pressable>
             </View>
-            <Pressable style={styles.supportButton} onPress={handleOpenSupport}>
-              <Headphones size={20} color={colors.text.onPrimary} />
-              <Text style={styles.supportButtonText}>Suporte</Text>
-            </Pressable>
           </Animated.View>
           <Pressable style={styles.drawerBackdrop} onPress={() => setIsDrawerOpen(false)} />
         </View>
       </Modal>
 
-      <Modal transparent visible={isInformationOpen} animationType="fade">
+      <Modal
+        transparent
+        visible={isInformationOpen}
+        animationType="fade"
+        onRequestClose={() => setIsInformationOpen(false)}
+      >
         <View style={styles.menuModalOverlay}>
           <View style={styles.menuModalCard}>
             <View style={styles.menuModalHeader}>
@@ -365,7 +385,12 @@ export function TicketListScreen() {
         </View>
       </Modal>
 
-      <Modal transparent visible={isHelpOpen} animationType="fade">
+      <Modal
+        transparent
+        visible={isHelpOpen}
+        animationType="fade"
+        onRequestClose={() => setIsHelpOpen(false)}
+      >
         <View style={styles.menuModalOverlay}>
           <View style={styles.helpModalCard}>
             <View style={styles.menuModalHeader}>
@@ -549,7 +574,7 @@ const styles = StyleSheet.create({
   },
   contentPanel: {
     flex: 1,
-    backgroundColor: "#F3F8FE",
+    backgroundColor: colors.background.screen,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
@@ -675,29 +700,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.default,
     marginTop: 16,
     paddingTop: 12,
-  },
-  supportButton: {
-    position: "absolute",
-    left: 22,
-    right: 22,
-    bottom: 28,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.brand.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-    shadowColor: "#000",
-    shadowOpacity: 0.14,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
-  },
-  supportButtonText: {
-    color: colors.text.onPrimary,
-    fontSize: 15,
-    fontWeight: "700",
   },
   menuModalOverlay: {
     flex: 1,

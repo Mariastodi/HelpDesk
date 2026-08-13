@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -11,9 +21,11 @@ import {
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
+  Mic,
   Paperclip,
   Plus,
   Trash2,
+  Square,
   X,
 } from "lucide-react-native";
 import { Button } from "@core/components/ui/button";
@@ -23,7 +35,12 @@ import { RootStackParamList } from "@core/routers/root-stack-type";
 import { createApiClient } from "@core/services/api/client";
 import { colors } from "@core/theme/colors";
 import { createTicket } from "@modules/help-desk/repository/tickets-repository";
+import {
+  persistTicketAttachment,
+  removeStoredTicketAttachment,
+} from "@modules/help-desk/services/ticket-attachment-storage";
 import { DataTicketAttachment } from "./new-ticket-type";
+import { useDescriptionSpeechRecognition } from "./use-description-speech-recognition";
 
 const DEFAULT_INSTITUTION = {
   label: "Matriz - Fortaleza",
@@ -102,89 +119,130 @@ export function NewTicketScreen() {
 
   async function handleSelectPhotos() {
     setIsAttachmentMenuOpen(false);
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      if (Platform.OS === "ios") {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permissionResult.granted) {
+          showToast("Permita o acesso às fotos para anexar imagens", "warning");
+          return;
+        }
+      }
 
-    if (!permissionResult.granted) {
-      showToast("Permita o acesso às fotos para anexar imagens", "warning");
-      return;
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false,
+        quality: 0.85,
+      });
+      if (pickerResult.canceled) return;
+
+      const selectedPhotos = await Promise.all(
+        pickerResult.assets.map((asset, index) =>
+          persistTicketAttachment({
+            uri: asset.uri,
+            name: asset.fileName ?? `foto-${Date.now()}-${index + 1}.jpg`,
+            mimeType: asset.mimeType ?? "image/jpeg",
+            size: asset.fileSize,
+          }),
+        ),
+      );
+      setAttachments((currentAttachments) => [...currentAttachments, ...selectedPhotos]);
+      showToast(
+        selectedPhotos.length === 1
+          ? "Foto anexada ao chamado"
+          : `${selectedPhotos.length} fotos anexadas ao chamado`,
+        "success",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível anexar as fotos";
+      showToast(message, "error");
     }
-
-    const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.85,
-    });
-
-    if (pickerResult.canceled) return;
-
-    const selectedPhotos = pickerResult.assets.map<DataTicketAttachment>((asset, index) => ({
-      uri: asset.uri,
-      name: asset.fileName ?? `foto-${Date.now()}-${index + 1}.jpg`,
-      mimeType: asset.mimeType ?? "image/jpeg",
-      size: asset.fileSize,
-    }));
-
-    setAttachments((currentAttachments) => [...currentAttachments, ...selectedPhotos]);
   }
 
   async function handleTakePhoto() {
     setIsAttachmentMenuOpen(false);
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        showToast("Permita o acesso à câmera para tirar uma foto", "warning");
+        return;
+      }
 
-    if (!permissionResult.granted) {
-      showToast("Permita o acesso à câmera para tirar uma foto", "warning");
-      return;
-    }
+      const cameraResult = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+      });
+      if (cameraResult.canceled) return;
 
-    const cameraResult = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
-    });
-
-    if (cameraResult.canceled) return;
-
-    const capturedPhoto = cameraResult.assets[0];
-    setAttachments((currentAttachments) => [
-      ...currentAttachments,
-      {
+      const capturedPhoto = cameraResult.assets[0];
+      const storedPhoto = await persistTicketAttachment({
         uri: capturedPhoto.uri,
         name: capturedPhoto.fileName ?? `foto-${Date.now()}.jpg`,
         mimeType: capturedPhoto.mimeType ?? "image/jpeg",
         size: capturedPhoto.fileSize,
-      },
-    ]);
+      });
+      setAttachments((currentAttachments) => [...currentAttachments, storedPhoto]);
+      showToast("Foto anexada ao chamado", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível anexar a foto";
+      showToast(message, "error");
+    }
   }
 
   async function handleSelectDocuments() {
     setIsAttachmentMenuOpen(false);
-    const pickerResult = await DocumentPicker.getDocumentAsync({
-      type: ACCEPTED_DOCUMENT_TYPES,
-      multiple: true,
-      copyToCacheDirectory: true,
-    });
+    try {
+      const pickerResult = await DocumentPicker.getDocumentAsync({
+        type: ACCEPTED_DOCUMENT_TYPES,
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (pickerResult.canceled) return;
 
-    if (pickerResult.canceled) return;
-
-    const selectedDocuments = pickerResult.assets.map<DataTicketAttachment>((asset) => ({
-      uri: asset.uri,
-      name: asset.name,
-      mimeType: asset.mimeType ?? "application/octet-stream",
-      size: asset.size,
-    }));
-
-    setAttachments((currentAttachments) => [...currentAttachments, ...selectedDocuments]);
+      const selectedDocuments = await Promise.all(
+        pickerResult.assets.map((asset) =>
+          persistTicketAttachment({
+            uri: asset.uri,
+            name: asset.name,
+            mimeType: asset.mimeType ?? "application/octet-stream",
+            size: asset.size,
+          }),
+        ),
+      );
+      setAttachments((currentAttachments) => [...currentAttachments, ...selectedDocuments]);
+      showToast(
+        selectedDocuments.length === 1
+          ? "Documento anexado ao chamado"
+          : `${selectedDocuments.length} documentos anexados ao chamado`,
+        "success",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Não foi possível anexar os documentos";
+      showToast(message, "error");
+    }
   }
 
   function handleRemoveAttachment(attachmentUri: string) {
     setAttachments((currentAttachments) =>
       currentAttachments.filter((attachment) => attachment.uri !== attachmentUri),
     );
+    void removeStoredTicketAttachment(attachmentUri);
   }
 
   function handleDescriptionChange(value: string) {
     setDescription(value);
     if (value.trim()) setErrorMessage(undefined);
   }
+
+  function handleOpenAttachmentMenu() {
+    Keyboard.dismiss();
+    setIsAttachmentMenuOpen(true);
+  }
+
+  const { isListening, toggleListening } = useDescriptionSpeechRecognition({
+    description,
+    onDescriptionChange: handleDescriptionChange,
+  });
 
   const hasDescriptionError = !description.trim() && errorMessage !== undefined;
 
@@ -213,19 +271,37 @@ export function NewTicketScreen() {
           </View>
 
           <Text style={styles.sectionLabel}>Descrição *</Text>
-          <TextInput
-            style={[styles.textArea, hasDescriptionError && styles.textAreaError]}
-            value={description}
-            onChangeText={handleDescriptionChange}
-            placeholder="Descreva o problema"
-            placeholderTextColor={colors.text.secondary}
-            multiline
-            numberOfLines={5}
-          />
+          <View style={[styles.descriptionContainer, hasDescriptionError && styles.textAreaError]}>
+            <TextInput
+              style={styles.textArea}
+              value={description}
+              onChangeText={handleDescriptionChange}
+              placeholder={isListening ? "Ouvindo..." : "Descreva o problema"}
+              placeholderTextColor={colors.text.secondary}
+              multiline
+              numberOfLines={5}
+            />
+          </View>
+          <Pressable
+            style={[styles.voiceButton, isListening && styles.voiceButtonListening]}
+            onPress={toggleListening}
+            accessibilityRole="button"
+            accessibilityLabel={isListening ? "Parar transcrição" : "Transcrever descrição"}
+            accessibilityState={{ selected: isListening }}
+          >
+            {isListening ? (
+              <Square size={16} color={colors.text.onPrimary} fill={colors.text.onPrimary} />
+            ) : (
+              <Mic size={19} color={colors.brand.primary} />
+            )}
+            <Text style={[styles.voiceButtonText, isListening && styles.voiceButtonTextListening]}>
+              {isListening ? "Parar transcrição" : "Preencher descrição por voz"}
+            </Text>
+          </Pressable>
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
           <Text style={styles.sectionLabel}>Anexos opcionais</Text>
-          <Pressable style={styles.attachmentButton} onPress={() => setIsAttachmentMenuOpen(true)}>
+          <Pressable style={styles.attachmentButton} onPress={handleOpenAttachmentMenu}>
             <Paperclip size={18} color={colors.brand.primary} />
             <View style={styles.attachmentButtonContent}>
               <Text style={styles.attachmentButtonTitle}>Adicionar anexo</Text>
@@ -268,7 +344,13 @@ export function NewTicketScreen() {
         />
       </ScrollView>
 
-      <Modal transparent visible={isAttachmentMenuOpen} animationType="fade">
+      <Modal
+        transparent
+        visible={isAttachmentMenuOpen}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setIsAttachmentMenuOpen(false)}
+      >
         <View style={styles.attachmentMenuOverlay}>
           <Pressable
             style={styles.attachmentMenuBackdrop}
@@ -292,9 +374,7 @@ export function NewTicketScreen() {
               <ImageIcon size={22} color={colors.brand.primary} />
               <View>
                 <Text style={styles.attachmentMenuOptionTitle}>Escolher fotos</Text>
-                <Text style={styles.attachmentMenuOptionSubtitle}>
-                  Selecionar uma ou mais imagens
-                </Text>
+                <Text style={styles.attachmentMenuOptionSubtitle}>Selecionar uma imagem</Text>
               </View>
             </Pressable>
             <Pressable style={styles.attachmentMenuOption} onPress={handleSelectDocuments}>
@@ -378,20 +458,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  textArea: {
+  descriptionContainer: {
     minHeight: 118,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border.default,
     backgroundColor: colors.background.subtle,
+    marginBottom: 10,
+  },
+  textArea: {
+    flex: 1,
+    minHeight: 116,
     color: colors.text.primary,
     padding: 14,
     textAlignVertical: "top",
-    marginBottom: 18,
   },
   textAreaError: {
     borderColor: colors.text.error,
     marginBottom: 5,
+  },
+  voiceButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E1D1D3",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#F8E9EA",
+    marginBottom: 18,
+  },
+  voiceButtonListening: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
+  },
+  voiceButtonText: {
+    color: colors.brand.primary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  voiceButtonTextListening: {
+    color: colors.text.onPrimary,
   },
   errorText: {
     color: colors.text.error,

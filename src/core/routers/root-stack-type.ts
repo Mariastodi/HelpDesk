@@ -12,4 +12,5 @@ export type RootStackParamList = {
   TicketList: undefined;
   NewTicket: undefined;
   TicketDetail: { ticket: DataTicketRoute };
+  Settings: undefined;
 };
