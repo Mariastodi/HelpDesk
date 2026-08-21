@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CalendarDays, Clock3, Paperclip } from "lucide-react-native";
 import { colors } from "@core/theme/colors";
-import { DeadlineIndicator } from "@modules/help-desk/enums/ticket-status";
+import { DeadlineIndicator, TicketStatus } from "@modules/help-desk/enums/ticket-status";
 import { getDeadlineIndicator } from "@modules/help-desk/utils/get-deadline-indicator";
 import { ITicketCardProps } from "./ticket-card-type";
 
@@ -20,6 +20,15 @@ const INDICATOR_LABEL: Record<DeadlineIndicator, string> = {
   [DeadlineIndicator.OVERDUE]: "Prazo vencido",
 };
 
+const STATUS_COLOR: Record<TicketStatus, string> = {
+  [TicketStatus.AGUARDANDO_ANALISE_CONTROLLER]: "#C35B00",
+  [TicketStatus.AGUARDANDO_ATENDIMENTO]: "#C35B00",
+  [TicketStatus.EM_ATENDIMENTO]: "#285DE5",
+  [TicketStatus.AGUARDANDO_VALIDACAO_USUARIO]: "#079447",
+  [TicketStatus.ENCERRADO]: "#3A4658",
+  [TicketStatus.CANCELADO]: "#6B7280",
+};
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString("pt-BR");
 }
@@ -27,13 +36,14 @@ function formatDate(date: Date): string {
 export function TicketCard({ ticket, onPress }: ITicketCardProps) {
   const deadlineIndicator = getDeadlineIndicator(ticket.status, ticket.deadlineDate);
   const indicatorColor = INDICATOR_COLOR[deadlineIndicator];
+  const statusColor = STATUS_COLOR[ticket.status];
 
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={() => onPress?.(ticket)}
     >
-      <View style={[styles.stripe, { backgroundColor: indicatorColor }]} />
+      <View style={[styles.stripe, { backgroundColor: statusColor }]} />
 
       <View style={styles.content}>
         <Text style={styles.ticketID}>{ticket.ticketID}</Text>

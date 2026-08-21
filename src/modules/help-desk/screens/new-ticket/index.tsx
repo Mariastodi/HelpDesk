@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Keyboard,
   Modal,
@@ -31,6 +31,7 @@ import {
 import { Button } from "@core/components/ui/button";
 import { useToast } from "@core/components/ui/toast";
 import { useAuth } from "@core/contexts/auth";
+import { useInstitution } from "@core/contexts/institution";
 import { RootStackParamList } from "@core/routers/root-stack-type";
 import { createApiClient } from "@core/services/api/client";
 import { colors } from "@core/theme/colors";
@@ -41,11 +42,7 @@ import {
 } from "@modules/help-desk/services/ticket-attachment-storage";
 import { DataTicketAttachment } from "./new-ticket-type";
 import { useDescriptionSpeechRecognition } from "./use-description-speech-recognition";
-
-const DEFAULT_INSTITUTION = {
-  label: "Matriz - Fortaleza",
-  description: "Vinculada ao seu perfil",
-};
+import { InstitutionSelector } from "@modules/institution/components/institution-selector";
 
 const ACCEPTED_DOCUMENT_TYPES = [
   "application/pdf",
@@ -75,13 +72,13 @@ function getAttachmentIcon(mimeType: string) {
 export function NewTicketScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { loggedUser } = useAuth();
+  const { selectedInstitution } = useInstitution();
   const { showToast } = useToast();
   const [description, setDescription] = useState("");
   const [attachments, setAttachments] = useState<DataTicketAttachment[]>([]);
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
-  const selectedInstitution = useMemo(() => DEFAULT_INSTITUTION, []);
 
   async function handleSubmit() {
     if (!description.trim()) {
@@ -94,12 +91,18 @@ export function NewTicketScreen() {
       return;
     }
 
+    if (!selectedInstitution) {
+      showToast("Selecione uma instituição para abrir o chamado", "warning");
+      return;
+    }
+
     setErrorMessage(undefined);
     setIsSubmitting(true);
 
     try {
       const apiClient = createApiClient(loggedUser.environment, loggedUser.jwtToken);
       await createTicket(apiClient, {
+        institutionId: selectedInstitution.id,
         description: description.trim(),
         attachmentFiles: attachments.map((attachment) => ({
           uri: attachment.uri,
@@ -252,22 +255,21 @@ export function NewTicketScreen() {
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={10}>
           <ChevronLeft size={23} color={colors.text.onPrimary} />
         </Pressable>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.headerTitle}>Novo Chamado</Text>
-          <Text style={styles.headerSubtitle}>Modelo reduzido · Parâmetro 959</Text>
         </View>
       </View>
 
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Instituição</Text>
-          <View style={styles.institutionCard}>
-            <Text style={styles.institutionTitle}>{selectedInstitution.label}</Text>
-            <Text style={styles.institutionSubtitle}>{selectedInstitution.description}</Text>
+          <View style={styles.institutionSelector}>
+            <InstitutionSelector />
           </View>
 
           <Text style={styles.sectionLabel}>Descrição *</Text>
@@ -340,7 +342,7 @@ export function NewTicketScreen() {
           label="Abrir chamado"
           onPress={handleSubmit}
           isLoading={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !selectedInstitution}
         />
       </ScrollView>
 
@@ -394,14 +396,15 @@ export function NewTicketScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F9FF",
+    backgroundColor: colors.brand.primary,
   },
   header: {
-    height: 104,
+    height: 38,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 20,
+    paddingBottom: 0,
     backgroundColor: colors.brand.primary,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
@@ -411,25 +414,28 @@ const styles = StyleSheet.create({
     height: 38,
     alignItems: "center",
     justifyContent: "center",
+    transform: [{ translateY: -20 }],
   },
+  headerText: { transform: [{ translateY: -20 }] },
   headerTitle: {
     color: colors.text.onPrimary,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
   },
-  headerSubtitle: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 12,
-    marginTop: 3,
+  scrollView: {
+    flex: 1,
+    backgroundColor: "#F4F9FF",
   },
   content: {
+    flexGrow: 1,
     padding: 20,
-    paddingBottom: 42,
+    paddingBottom: 36,
+    backgroundColor: "#F4F9FF",
   },
   card: {
     backgroundColor: colors.background.screen,
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 18,
     borderWidth: 1,
     borderColor: "#ECEFF3",
@@ -442,22 +448,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 9,
   },
-  institutionCard: {
-    backgroundColor: colors.background.subtle,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 19,
-  },
-  institutionTitle: {
-    color: colors.text.primary,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  institutionSubtitle: {
-    color: colors.text.secondary,
-    fontSize: 12,
-    marginTop: 4,
-  },
+  institutionSelector: { marginBottom: 19 },
   descriptionContainer: {
     minHeight: 118,
     borderRadius: 14,

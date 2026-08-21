@@ -20,8 +20,8 @@ export interface DataTicket {
 }
 
 export interface DataTicketStatusSummary {
+  inService: number;
   awaitingService: number;
-  lateOrDueSoon: number;
   awaitingValidation: number;
   closed: number;
 }

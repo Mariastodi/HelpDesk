@@ -21,7 +21,6 @@ import {
   Headphones,
   Home,
   Info,
-  ListFilter,
   LogOut,
   Menu,
   Plus,
@@ -36,6 +35,7 @@ import { useAuth } from "@core/contexts/auth";
 import { useToast } from "@core/components/ui/toast";
 import { RootStackParamList } from "@core/routers/root-stack-type";
 import { StatusTabs } from "@modules/help-desk/components/status-tabs";
+import { MainTicketStatus } from "@modules/help-desk/components/status-tabs/status-tabs-type";
 import { TicketCard } from "@modules/help-desk/components/ticket-card";
 import { TicketStatus } from "@modules/help-desk/enums/ticket-status";
 import { DataTicket } from "@modules/help-desk/repository/ticket-type";
@@ -43,13 +43,13 @@ import { useTicketList } from "./use-ticket-list";
 import { appConfig } from "@core/config/app-config";
 
 type SortOption = "ABERTURA" | "PRAZO" | "PRIORIDADE";
-type StatusFilterOption = TicketStatus | "TODOS" | "AGUARDANDO";
+type StatusFilterOption = MainTicketStatus | "TODOS";
 type DrawerDestination = "information" | "help" | "settings";
 
 const STATUS_FILTER_OPTIONS: { label: string; value: StatusFilterOption }[] = [
   { label: "Todos", value: "TODOS" },
   { label: "Em atendimento", value: TicketStatus.EM_ATENDIMENTO },
-  { label: "Aguardando", value: "AGUARDANDO" },
+  { label: "Aguardando atendimento", value: TicketStatus.AGUARDANDO_ATENDIMENTO },
   { label: "Validação", value: TicketStatus.AGUARDANDO_VALIDACAO_USUARIO },
   { label: "Encerrado", value: TicketStatus.ENCERRADO },
 ];
@@ -88,6 +88,20 @@ function parseBrazilianDate(value: string, isEndOfDay = false): Date | null {
   return parsedDate;
 }
 
+function formatBrazilianDateInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function normalizeSearchValue(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function getGreeting(currentHour: number): string {
   if (currentHour < 12) return "Bom dia,";
   if (currentHour < 18) return "Boa tarde,";
@@ -96,7 +110,8 @@ function getGreeting(currentHour: number): string {
 
 export function TicketListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { loggedUser, tickets, statusSummary, hoursConsumption, isLoading } = useTicketList();
+  const { loggedUser, tickets, statusSummary, hoursConsumption, isLoading, refresh } =
+    useTicketList();
   const { logout } = useAuth();
   const { showToast } = useToast();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -111,6 +126,10 @@ export function TicketListScreen() {
   const [sortOption, setSortOption] = useState<SortOption>("ABERTURA");
   const [startDateInput, setStartDateInput] = useState("");
   const [endDateInput, setEndDateInput] = useState("");
+  const [draftStatusFilter, setDraftStatusFilter] = useState<StatusFilterOption>("TODOS");
+  const [draftSortOption, setDraftSortOption] = useState<SortOption>("ABERTURA");
+  const [draftStartDateInput, setDraftStartDateInput] = useState("");
+  const [draftEndDateInput, setDraftEndDateInput] = useState("");
   const drawerTranslateX = useRef(new Animated.Value(-Dimensions.get("window").width)).current;
   const userDisplayName = loggedUser?.userName ?? "Usuário";
   const userLogin =
@@ -145,22 +164,16 @@ export function TicketListScreen() {
   }, [drawerTranslateX, isDrawerOpen, isDrawerVisible]);
 
   const filteredTickets = useMemo(() => {
-    const normalizedSearch = searchText.trim().toLowerCase();
+    const normalizedSearch = normalizeSearchValue(searchText.trim());
     const startDate = parseBrazilianDate(startDateInput);
     const endDate = parseBrazilianDate(endDateInput, true);
 
     const matchingTickets = tickets.filter((ticket) => {
-      const isAwaitingTicket =
-        ticket.status === TicketStatus.AGUARDANDO_ATENDIMENTO ||
-        ticket.status === TicketStatus.AGUARDANDO_ANALISE_CONTROLLER;
-      const matchesStatus =
-        statusFilter === "TODOS" ||
-        ticket.status === statusFilter ||
-        (statusFilter === "AGUARDANDO" && isAwaitingTicket);
+      const matchesStatus = statusFilter === "TODOS" || ticket.status === statusFilter;
       const matchesSearch =
         !normalizedSearch ||
-        ticket.ticketID.toLowerCase().includes(normalizedSearch) ||
-        ticket.description.toLowerCase().includes(normalizedSearch);
+        normalizeSearchValue(ticket.ticketID).includes(normalizedSearch) ||
+        normalizeSearchValue(ticket.description).includes(normalizedSearch);
       const matchesStartDate = !startDate || ticket.openedAt >= startDate;
       const matchesEndDate = !endDate || ticket.openedAt <= endDate;
 
@@ -220,6 +233,45 @@ export function TicketListScreen() {
     setSortOption("ABERTURA");
     setStartDateInput("");
     setEndDateInput("");
+    setDraftStatusFilter("TODOS");
+    setDraftSortOption("ABERTURA");
+    setDraftStartDateInput("");
+    setDraftEndDateInput("");
+  }
+
+  function handleApplyFilters() {
+    const startDate = parseBrazilianDate(draftStartDateInput);
+    const endDate = parseBrazilianDate(draftEndDateInput, true);
+
+    if ((draftStartDateInput && !startDate) || (draftEndDateInput && !endDate)) {
+      showToast("Informe o período no formato dd/mm/aaaa", "warning");
+      return;
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      showToast("A data inicial deve ser anterior à data final", "warning");
+      return;
+    }
+
+    setStatusFilter(draftStatusFilter);
+    setSortOption(draftSortOption);
+    setStartDateInput(draftStartDateInput);
+    setEndDateInput(draftEndDateInput);
+    setIsFilterOpen(false);
+  }
+
+  function handleOpenFilters() {
+    setDraftStatusFilter(statusFilter);
+    setDraftSortOption(sortOption);
+    setDraftStartDateInput(startDateInput);
+    setDraftEndDateInput(endDateInput);
+    setIsFilterOpen(true);
+  }
+
+  function handleStatusTabPress(status: MainTicketStatus) {
+    const nextStatus = statusFilter === status ? "TODOS" : status;
+    setStatusFilter(nextStatus);
+    setDraftStatusFilter(nextStatus);
   }
 
   function handleTicketPress(ticket: DataTicket) {
@@ -255,7 +307,11 @@ export function TicketListScreen() {
       </View>
 
       <View style={styles.contentPanel}>
-        <StatusTabs summary={statusSummary} />
+        <StatusTabs
+          summary={statusSummary}
+          activeStatus={statusFilter === "TODOS" ? undefined : statusFilter}
+          onStatusPress={handleStatusTabPress}
+        />
 
         <View style={styles.searchRow}>
           <View style={styles.searchInputWrapper}>
@@ -269,11 +325,13 @@ export function TicketListScreen() {
               returnKeyType="search"
             />
           </View>
-          <Pressable style={styles.filterIconButton} onPress={() => setIsFilterOpen(true)}>
+          <Pressable
+            style={styles.filterIconButton}
+            onPress={handleOpenFilters}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir filtros"
+          >
             <SlidersHorizontal size={19} color={colors.text.secondary} />
-          </Pressable>
-          <Pressable style={styles.filterIconButton} onPress={() => setIsFilterOpen(true)}>
-            <ListFilter size={19} color={colors.text.secondary} />
           </Pressable>
         </View>
 
@@ -288,6 +346,8 @@ export function TicketListScreen() {
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            refreshing={isLoading}
+            onRefresh={() => void refresh()}
           />
         )}
       </View>
@@ -439,7 +499,7 @@ export function TicketListScreen() {
             <Text style={styles.filterSectionTitle}>Status do chamado</Text>
             <View style={styles.filterStatusRow}>
               {STATUS_FILTER_OPTIONS.map((option) => {
-                const isSelected = statusFilter === option.value;
+                const isSelected = draftStatusFilter === option.value;
                 return (
                   <Pressable
                     key={option.value}
@@ -447,7 +507,7 @@ export function TicketListScreen() {
                       styles.filterStatusButton,
                       isSelected && styles.filterStatusButtonActive,
                     ]}
-                    onPress={() => setStatusFilter(option.value)}
+                    onPress={() => setDraftStatusFilter(option.value)}
                   >
                     <Text
                       style={[
@@ -465,12 +525,12 @@ export function TicketListScreen() {
             <Text style={styles.filterSectionTitle}>Ordenação</Text>
             <View style={styles.filterOrderCard}>
               {SORT_OPTIONS.map((option) => {
-                const isSelected = sortOption === option.value;
+                const isSelected = draftSortOption === option.value;
                 return (
                   <Pressable
                     key={option.value}
                     style={styles.filterOrderRow}
-                    onPress={() => setSortOption(option.value)}
+                    onPress={() => setDraftSortOption(option.value)}
                   >
                     <View style={[styles.radioOuter, isSelected && styles.radioOuterActive]}>
                       {isSelected ? <View style={styles.radioInner} /> : null}
@@ -487,8 +547,8 @@ export function TicketListScreen() {
                 style={styles.filterDateInput}
                 placeholder="dd/mm/aaaa"
                 placeholderTextColor={colors.text.secondary}
-                value={startDateInput}
-                onChangeText={setStartDateInput}
+                value={draftStartDateInput}
+                onChangeText={(value) => setDraftStartDateInput(formatBrazilianDateInput(value))}
                 keyboardType="numeric"
                 maxLength={10}
               />
@@ -496,14 +556,14 @@ export function TicketListScreen() {
                 style={styles.filterDateInput}
                 placeholder="dd/mm/aaaa"
                 placeholderTextColor={colors.text.secondary}
-                value={endDateInput}
-                onChangeText={setEndDateInput}
+                value={draftEndDateInput}
+                onChangeText={(value) => setDraftEndDateInput(formatBrazilianDateInput(value))}
                 keyboardType="numeric"
                 maxLength={10}
               />
             </View>
 
-            <Pressable style={styles.applyFiltersButton} onPress={() => setIsFilterOpen(false)}>
+            <Pressable style={styles.applyFiltersButton} onPress={handleApplyFilters}>
               <Text style={styles.applyFiltersButtonText}>Aplicar filtros</Text>
             </Pressable>
           </View>

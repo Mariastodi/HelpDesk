@@ -15,12 +15,15 @@ import {
 import { useAuth } from "@core/contexts/auth";
 import { RootStackParamList } from "@core/routers/root-stack-type";
 import { colors } from "@core/theme/colors";
+import { useInstitution } from "@core/contexts/institution";
+import { InstitutionSelector } from "@modules/institution/components/institution-selector";
 
 type SettingsNavigation = NativeStackNavigationProp<RootStackParamList, "Settings">;
 
 export function SettingsScreen() {
   const navigation = useNavigation<SettingsNavigation>();
   const { loggedUser } = useAuth();
+  const { institutions } = useInstitution();
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -51,6 +54,14 @@ export function SettingsScreen() {
               Confira permissões e informações usadas no atendimento.
             </Text>
           </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>INSTITUIÇÃO ATIVA</Text>
+        <View style={styles.institutionSection}>
+          <InstitutionSelector />
+          {institutions.length > 1 ? (
+            <Text style={styles.institutionHint}>Toque acima para trocar de instituição</Text>
+          ) : null}
         </View>
 
         <Text style={styles.sectionTitle}>PERMISSÕES</Text>
@@ -173,6 +184,8 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginBottom: 8,
   },
+  institutionSection: { marginBottom: 23 },
+  institutionHint: { color: colors.text.secondary, fontSize: 11, marginTop: 7, marginLeft: 4 },
   card: {
     borderWidth: 1,
     borderColor: colors.border.default,

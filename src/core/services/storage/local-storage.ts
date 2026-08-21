@@ -24,3 +24,11 @@ export const STORAGE_KEYS = {
   LOGGED_USER: "@gpmobile:logged_user",
   MOCK_TICKETS: "@gpmobile:mock_tickets",
 } as const;
+
+export function getSelectedInstitutionStorageKey(environment: string, userId: number): string {
+  return `@gpmobile:selected_institution:${environment}:${userId}`;
+}
+
+export function getMockTicketsStorageKey(institutionId: number): string {
+  return `${STORAGE_KEYS.MOCK_TICKETS}:qa-v2:${institutionId}`;
+}

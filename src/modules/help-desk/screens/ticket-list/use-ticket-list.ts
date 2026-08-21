@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@core/contexts/auth";
+import { useInstitution } from "@core/contexts/institution";
 import { createApiClient } from "@core/services/api/client";
 import { useToast } from "@core/components/ui/toast";
 import { AppApiError } from "@core/services/api/app-api-error";
@@ -13,6 +14,7 @@ import { DataHoursConsumption, DataTicket } from "@modules/help-desk/repository/
 
 export function useTicketList() {
   const { loggedUser, logout } = useAuth();
+  const { selectedInstitution } = useInstitution();
   const { showToast } = useToast();
   const apiClient = useMemo(
     () => (loggedUser ? createApiClient(loggedUser.environment, loggedUser.jwtToken) : null),
@@ -22,19 +24,25 @@ export function useTicketList() {
   const [tickets, setTickets] = useState<DataTicket[]>([]);
   const [hoursConsumption, setHoursConsumption] = useState<DataHoursConsumption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const requestSequence = useRef(0);
 
   const loadTickets = useCallback(async () => {
-    if (!apiClient) return;
+    if (!apiClient || !selectedInstitution) return;
+    const requestId = ++requestSequence.current;
 
     setIsLoading(true);
+    setTickets([]);
+    setHoursConsumption(null);
     try {
       const [ticketsResponse, hoursResponse] = await Promise.all([
-        getTickets(apiClient),
-        getHoursConsumption(apiClient),
+        getTickets(apiClient, selectedInstitution.id),
+        getHoursConsumption(apiClient, selectedInstitution.id),
       ]);
+      if (requestId !== requestSequence.current) return;
       setTickets(ticketsResponse);
       setHoursConsumption(hoursResponse);
     } catch (error) {
+      if (requestId !== requestSequence.current) return;
       if (error instanceof AppApiError && error.isAuthError) {
         showToast("Sua sessão expirou. Faça login novamente.", "error");
         await logout();
@@ -45,9 +53,9 @@ export function useTicketList() {
         error instanceof AppApiError ? error.message : "Não foi possível carregar os chamados";
       showToast(message, "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestSequence.current) setIsLoading(false);
     }
-  }, [apiClient, logout, showToast]);
+  }, [apiClient, logout, selectedInstitution, showToast]);
 
   useFocusEffect(
     useCallback(() => {

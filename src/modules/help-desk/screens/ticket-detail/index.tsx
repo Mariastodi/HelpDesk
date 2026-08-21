@@ -8,6 +8,7 @@ import { colors } from "@core/theme/colors";
 import { RootStackParamList } from "@core/routers/root-stack-type";
 import { DataTicket } from "@modules/help-desk/repository/ticket-type";
 import { TicketStatus } from "@modules/help-desk/enums/ticket-status";
+import { useInstitution } from "@core/contexts/institution";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
 
@@ -29,11 +30,16 @@ const STATUS_FLOW_INDEX: Record<TicketStatus, number> = {
   [TicketStatus.CANCELADO]: 4,
 };
 
+function isValidDate(date: Date): boolean {
+  return !Number.isNaN(date.getTime());
+}
+
 function formatDate(date: Date): string {
-  return date.toLocaleDateString("pt-BR");
+  return isValidDate(date) ? date.toLocaleDateString("pt-BR") : "Não informado";
 }
 
 function formatHistoryDate(date: Date): string {
+  if (!isValidDate(date)) return "Data não informada";
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const hours = String(date.getHours()).padStart(2, "0");
@@ -42,7 +48,7 @@ function formatHistoryDate(date: Date): string {
 }
 
 function getFlowSteps(status: TicketStatus): DataFlowStep[] {
-  const currentStepIndex = STATUS_FLOW_INDEX[status];
+  const currentStepIndex = STATUS_FLOW_INDEX[status] ?? 0;
   return FLOW_LABELS.map((label, index) => ({
     index,
     label,
@@ -53,6 +59,7 @@ function getFlowSteps(status: TicketStatus): DataFlowStep[] {
 
 export function TicketDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { selectedInstitution } = useInstitution();
   const route = useRoute<TicketDetailRouteProp>();
   const routeTicket = route.params.ticket;
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string>();
@@ -73,8 +80,9 @@ export function TicketDetailScreen() {
   const flowSteps = useMemo(() => getFlowSteps(ticket.status), [ticket.status]);
   const attachments = ticket.attachments ?? [];
   const imageAttachmentsCount = attachments.filter((attachment) =>
-    attachment.mimeType.startsWith("image/"),
+    attachment.mimeType?.startsWith("image/"),
   ).length;
+  const currentFlowIndex = STATUS_FLOW_INDEX[ticket.status] ?? 0;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -86,7 +94,7 @@ export function TicketDetailScreen() {
 
         <Text style={styles.ticketID}>{ticket.ticketID}</Text>
         <Text style={styles.ticketTitle}>{ticket.description}</Text>
-        <Text style={styles.ticketLocation}>Matriz - Fortaleza</Text>
+        <Text style={styles.ticketLocation}>{selectedInstitution?.name ?? "Instituição"}</Text>
       </View>
 
       <View style={styles.infoCard}>
@@ -119,7 +127,7 @@ export function TicketDetailScreen() {
               style={[
                 styles.flowProgressLine,
                 {
-                  width: `${(STATUS_FLOW_INDEX[ticket.status] / (FLOW_LABELS.length - 1)) * 100}%`,
+                  width: `${(currentFlowIndex / (FLOW_LABELS.length - 1)) * 100}%`,
                 },
               ]}
             />
@@ -145,6 +153,9 @@ export function TicketDetailScreen() {
                     styles.flowLabel,
                     (step.isCompleted || step.isCurrent) && styles.activeFlowLabel,
                   ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
                 >
                   {step.label}
                 </Text>
@@ -158,7 +169,7 @@ export function TicketDetailScreen() {
             <Text style={styles.attachmentsTitle}>ANEXOS</Text>
             <View style={styles.attachmentsGrid}>
               {attachments.map((attachment) =>
-                attachment.mimeType.startsWith("image/") ? (
+                attachment.mimeType?.startsWith("image/") ? (
                   <Pressable
                     key={attachment.uri}
                     style={({ pressed }) => [
@@ -180,8 +191,8 @@ export function TicketDetailScreen() {
                   </Pressable>
                 ) : (
                   <View key={attachment.uri} style={styles.documentCard}>
-                    {attachment.mimeType.includes("spreadsheet") ||
-                    attachment.mimeType.includes("excel") ? (
+                    {attachment.mimeType?.includes("spreadsheet") ||
+                    attachment.mimeType?.includes("excel") ? (
                       <FileSpreadsheet size={23} color="#178A4A" />
                     ) : (
                       <FileText size={23} color="#D14949" />
@@ -388,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
   },
   flowStep: {
-    width: 51,
+    flex: 1,
     alignItems: "center",
   },
   flowCircle: {
@@ -419,6 +430,7 @@ const styles = StyleSheet.create({
     color: colors.text.onPrimary,
   },
   flowLabel: {
+    width: "100%",
     color: "#C5D0DA",
     fontSize: 9,
     fontWeight: "600",

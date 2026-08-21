@@ -17,6 +17,12 @@ interface ILoginResponseBody {
   jwtToken: string;
 }
 
+const MOCK_USERS: Record<string, { codUser: number; userName: string }> = {
+  maria: { codUser: 1, userName: "Maria Santos" },
+  "sem.instituicao": { codUser: 2, userName: "João Sem Vínculo" },
+  "uma.instituicao": { codUser: 3, userName: "Ana Matriz" },
+};
+
 export async function loginRequest(
   apiClient: AxiosInstance,
   loginPayload: ILoginParams,
@@ -53,16 +59,22 @@ function mockLoginRequest({
         return;
       }
 
-      if (password !== "1234") {
+      const mockUser = MOCK_USERS[username.trim().toLowerCase()];
+      if (!mockUser) {
+        reject(new AppApiError({ httpCode: ApiHttpErrorCode.UNAUTHORIZED_401 }));
+        return;
+      }
+
+      if (!password.trim()) {
         reject(new AppApiError({ httpCode: ApiHttpErrorCode.UNAUTHORIZED_401 }));
         return;
       }
 
       resolve({
-        codUser: 1,
-        userName: "Maria Santos",
+        codUser: mockUser.codUser,
+        userName: mockUser.userName,
         userLogin: username,
-        jwtToken: "mock.jwt.token",
+        jwtToken: `mock.jwt.token.${mockUser.codUser}`,
         environment,
         sessionExpiresAt: Date.now() + appConfig.sessionDurationInMilliseconds,
       });
